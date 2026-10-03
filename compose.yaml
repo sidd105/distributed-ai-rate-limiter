@@ -1,0 +1,45 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: ['redis-server', '/usr/local/etc/redis/redis.conf']
+    ports: ['127.0.0.1:6379:6379']
+    volumes:
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 1s
+      retries: 15
+    networks: [limiter]
+
+  app-a:
+    build: .
+    environment: &app-environment
+      PORT: 3000
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: info
+      KEY_HMAC_SECRET: local-compose-secret
+      DEMO_AUTH_TOKEN: demo-payment-support-token
+      REDIS_TIMEOUT_MS: 250
+      INSTANCE_ID: app-a
+    ports: ['127.0.0.1:3001:3000']
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [limiter]
+
+  app-b:
+    build: .
+    environment:
+      <<: *app-environment
+      INSTANCE_ID: app-b
+    ports: ['127.0.0.1:3002:3000']
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [limiter]
+
+networks:
+  limiter:
+
+volumes:
+  redis-data:
